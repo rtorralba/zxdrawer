@@ -254,6 +254,50 @@ class ZXDrawer {
         this.updateZoom();
     }
 
+    resizeData(newW, newH) {
+        const oldW = this.width;
+        const oldH = this.height;
+        const oldPixels = this.pixels;
+        const oldAttributes = this.attributes;
+        
+        this.width = newW;
+        this.height = newH;
+        this.pixels = new Uint8Array(newW * newH);
+        this.attributes = new Uint8Array((newW / 8) * (newH / 8));
+        
+        for(let i=0; i < this.attributes.length; i++) {
+            this.attributes[i] = 0x07;
+        }
+
+        const copyW = Math.min(oldW, newW);
+        const copyH = Math.min(oldH, newH);
+        
+        for (let y = 0; y < copyH; y++) {
+            for (let x = 0; x < copyW; x++) {
+                this.pixels[y * newW + x] = oldPixels[y * oldW + x];
+            }
+        }
+        
+        const copyAttrW = Math.min(oldW / 8, newW / 8);
+        const copyAttrH = Math.min(oldH / 8, newH / 8);
+        const newAttrW = newW / 8;
+        const oldAttrW = oldW / 8;
+        
+        for (let y = 0; y < copyAttrH; y++) {
+            for (let x = 0; x < copyAttrW; x++) {
+                this.attributes[y * newAttrW + x] = oldAttributes[y * oldAttrW + x];
+            }
+        }
+
+        this.canvas.width = newW;
+        this.canvas.height = newH;
+        this.gridCanvas.width = newW;
+        this.gridCanvas.height = newH;
+        this.selCanvas.width = newW;
+        this.selCanvas.height = newH;
+        this.updateZoom();
+    }
+
     setupPalettes() {
         const inkGrid = document.getElementById('ink-palette');
         const paperGrid = document.getElementById('paper-palette');
@@ -542,8 +586,9 @@ class ZXDrawer {
                     this.currentFilePath = null;
                     this.setDirty(false);
                 } else {
-                    // Resize (same behavior as before)
-                    this.resetData(w, h);
+                    // Resize (preserving previous image data)
+                    this.saveHistory();
+                    this.resizeData(w, h);
                 }
                 this.render();
                 modal.classList.add('hidden');
@@ -1423,6 +1468,8 @@ class ZXDrawer {
     saveHistory() {
         const MAX = 50;
         this.undoStack.push({
+            width: this.width,
+            height: this.height,
             pixels: this.pixels.slice(),
             attributes: this.attributes.slice()
         });
@@ -1454,24 +1501,46 @@ class ZXDrawer {
     undo() {
         if (!this.undoStack.length) return;
         this.redoStack.push({
+            width: this.width,
+            height: this.height,
             pixels: this.pixels.slice(),
             attributes: this.attributes.slice()
         });
         const state = this.undoStack.pop();
+        this.width = state.width || this.width;
+        this.height = state.height || this.height;
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+        this.gridCanvas.width = this.width;
+        this.gridCanvas.height = this.height;
+        this.selCanvas.width = this.width;
+        this.selCanvas.height = this.height;
         this.pixels = state.pixels;
         this.attributes = state.attributes;
+        this.updateZoom();
         this.render();
     }
 
     redo() {
         if (!this.redoStack.length) return;
         this.undoStack.push({
+            width: this.width,
+            height: this.height,
             pixels: this.pixels.slice(),
             attributes: this.attributes.slice()
         });
         const state = this.redoStack.pop();
+        this.width = state.width || this.width;
+        this.height = state.height || this.height;
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+        this.gridCanvas.width = this.width;
+        this.gridCanvas.height = this.height;
+        this.selCanvas.width = this.width;
+        this.selCanvas.height = this.height;
         this.pixels = state.pixels;
         this.attributes = state.attributes;
+        this.updateZoom();
         this.render();
     }
     // ─────────────────────────────────────────────────────────────────────────
