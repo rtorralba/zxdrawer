@@ -1,6 +1,6 @@
 {
   "name": "zx-drawer",
-  "version": "1.0.32",
+  "version": "1.0.33",
   "description": "Simplified ZX Spectrum graphics editor with .zxp support.",
   "main": "main.js",
   "author": "Raül Torralba",
