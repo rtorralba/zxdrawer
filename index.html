@@ -136,8 +136,15 @@
                     <h3 data-i18n="panel.animation">Animation Preview</h3>
                     <div class="anim-controls">
                         <div class="anim-row">
-                            <label data-i18n="anim.framew">Frame W <small>(blocks)</small></label>
-                            <input type="number" id="anim-frame-w" value="2" min="1" max="64">
+                            <label data-i18n="anim.orientation">Layout</label>
+                            <select id="anim-orientation">
+                                <option value="h" data-i18n="anim.horiz">Horizontal</option>
+                                <option value="v" data-i18n="anim.vert">Vertical</option>
+                            </select>
+                        </div>
+                        <div class="anim-row">
+                            <label id="anim-size-label"><span data-i18n="anim.framew">Frame W</span> <small>(blocks)</small></label>
+                            <input type="number" id="anim-frame-size" value="2" min="1" max="64">
                         </div>
                         <div class="anim-row">
                             <label data-i18n="anim.fps">FPS</label>

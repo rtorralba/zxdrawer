@@ -1111,7 +1111,22 @@ class ZXDrawer {
 
     // ── Animation Viewer ─────────────────────────────────────────────────────
     setupAnimationViewer() {
-        document.getElementById('anim-frame-w').onchange = () => {
+        document.getElementById('anim-orientation').onchange = (e) => {
+            const isVert = e.target.value === 'v';
+            const labelSpan = document.querySelector('#anim-size-label span');
+            if (labelSpan) {
+                const key = isVert ? 'anim.frameh' : 'anim.framew';
+                labelSpan.setAttribute('data-i18n', key);
+                if (this._currentLocaleMap && this._currentLocaleMap[key]) {
+                    labelSpan.textContent = this._currentLocaleMap[key];
+                } else {
+                    labelSpan.textContent = isVert ? 'Frame H' : 'Frame W';
+                }
+            }
+            this.animCurrentFrame = 0;
+            this.resetAnimPlayer();
+        };
+        document.getElementById('anim-frame-size').onchange = () => {
             this.animCurrentFrame = 0;
             this.resetAnimPlayer();
         };
@@ -1125,8 +1140,8 @@ class ZXDrawer {
         document.getElementById('anim-prev-btn').onclick = () => {
             if (!this.clipboard) return;
             this.stopAnimation();
-            const { frameW } = this.getAnimParams();
-            const total = Math.max(1, Math.floor(this.clipboard.w / frameW));
+            const { frameSize, orient } = this.getAnimParams();
+            const total = Math.max(1, Math.floor((orient === 'v' ? this.clipboard.h : this.clipboard.w) / frameSize));
             this.animCurrentFrame = (this.animCurrentFrame - 1 + total) % total;
             this.renderAnimFrame();
             this.selectCurrentAnimFrame();
@@ -1134,8 +1149,8 @@ class ZXDrawer {
         document.getElementById('anim-next-btn').onclick = () => {
             if (!this.clipboard) return;
             this.stopAnimation();
-            const { frameW } = this.getAnimParams();
-            const total = Math.max(1, Math.floor(this.clipboard.w / frameW));
+            const { frameSize, orient } = this.getAnimParams();
+            const total = Math.max(1, Math.floor((orient === 'v' ? this.clipboard.h : this.clipboard.w) / frameSize));
             this.animCurrentFrame = (this.animCurrentFrame + 1) % total;
             this.renderAnimFrame();
             this.selectCurrentAnimFrame();
@@ -1155,13 +1170,17 @@ class ZXDrawer {
             if (!this.clipboard || this.clipboard.originX === undefined) return;
 
             const rect = canvas.getBoundingClientRect();
-            const { frameW } = this.getAnimParams();
+            const { frameSize, orient } = this.getAnimParams();
             const { w, h } = this.clipboard;
-            const totalFrames = Math.max(1, Math.floor(w / frameW));
+            
+            const frameW = orient === 'v' ? w : frameSize;
+            const frameH = orient === 'v' ? frameSize : h;
+            
+            const totalFrames = Math.max(1, Math.floor((orient === 'v' ? h : w) / frameSize));
             const frameIdx = this.animCurrentFrame % totalFrames;
 
             const fPixW = frameW * 8;
-            const fPixH = h * 8;
+            const fPixH = frameH * 8;
             if (canvas.width === 0 || canvas.height === 0) return;
             const scaleX = rect.width / fPixW;
             const scaleY = rect.height / fPixH;
@@ -1177,8 +1196,14 @@ class ZXDrawer {
             if (pixVal === -1) return;
 
             // Map to main canvas coords
-            const mainX = this.clipboard.originX * 8 + frameIdx * fPixW + px;
-            const mainY = this.clipboard.originY * 8 + py;
+            let mainX, mainY;
+            if (orient === 'v') {
+                mainX = this.clipboard.originX * 8 + px;
+                mainY = this.clipboard.originY * 8 + frameIdx * fPixH + py;
+            } else {
+                mainX = this.clipboard.originX * 8 + frameIdx * fPixW + px;
+                mainY = this.clipboard.originY * 8 + py;
+            }
             if (mainX < 0 || mainX >= this.width || mainY < 0 || mainY >= this.height) return;
 
             // Paint on main canvas
@@ -1190,10 +1215,11 @@ class ZXDrawer {
             this.attributes[attrIdx] = this.computeAttrByte(attrIdx);
 
             // Keep clipboard in sync so the preview reflects the change immediately
-            const clipSrcX = frameIdx * fPixW + px;
-            this.clipboard.pixels[py * (w * 8) + clipSrcX] = pixVal;
+            const clipSrcX = orient === 'v' ? px : (frameIdx * fPixW + px);
+            const clipSrcY = orient === 'v' ? (frameIdx * fPixH + py) : py;
+            this.clipboard.pixels[clipSrcY * (w * 8) + clipSrcX] = pixVal;
             const clipBx = Math.floor(clipSrcX / 8);
-            const clipBy = Math.floor(py / 8);
+            const clipBy = Math.floor(clipSrcY / 8);
             this.clipboard.attributes[clipBy * w + clipBx] = this.attributes[attrIdx];
 
             this.render();
@@ -1324,9 +1350,10 @@ class ZXDrawer {
     }
 
     getAnimParams() {
-        const frameW = Math.max(1, parseInt(document.getElementById('anim-frame-w').value) || 1);
+        const orient = document.getElementById('anim-orientation').value || 'h';
+        const frameSize = Math.max(1, parseInt(document.getElementById('anim-frame-size').value) || 1);
         const fps    = Math.max(1, parseInt(document.getElementById('anim-fps').value) || 8);
-        return { frameW, fps };
+        return { orient, frameSize, fps };
     }
 
     resetAnimPlayer() {
@@ -1339,8 +1366,8 @@ class ZXDrawer {
         this.stopAnimation();
         this.renderAnimFrame();
         const tick = () => {
-            const { frameW } = this.getAnimParams();
-            const total = Math.max(1, Math.floor(this.clipboard.w / frameW));
+            const { frameSize, orient } = this.getAnimParams();
+            const total = Math.max(1, Math.floor((orient === 'v' ? this.clipboard.h : this.clipboard.w) / frameSize));
             this.animCurrentFrame = (this.animCurrentFrame + 1) % total;
             this.renderAnimFrame();
         };
@@ -1362,14 +1389,28 @@ class ZXDrawer {
 
     selectCurrentAnimFrame() {
         if (!this.clipboard || this.clipboard.originX === undefined) return;
-        const { frameW } = this.getAnimParams();
-        const total = Math.max(1, Math.floor(this.clipboard.w / frameW));
+        const { frameSize, orient } = this.getAnimParams();
+        const total = Math.max(1, Math.floor((orient === 'v' ? this.clipboard.h : this.clipboard.w) / frameSize));
         const frameIdx = this.animCurrentFrame % total;
+        
+        let selX = this.clipboard.originX;
+        let selY = this.clipboard.originY;
+        let selW = this.clipboard.w;
+        let selH = this.clipboard.h;
+        
+        if (orient === 'v') {
+            selY += frameIdx * frameSize;
+            selH = frameSize;
+        } else {
+            selX += frameIdx * frameSize;
+            selW = frameSize;
+        }
+        
         this.selection = {
-            x: this.clipboard.originX + frameIdx * frameW,
-            y: this.clipboard.originY,
-            w: frameW,
-            h: this.clipboard.h
+            x: selX,
+            y: selY,
+            w: selW,
+            h: selH
         };
         this.drawSelection();
     }
@@ -1389,13 +1430,16 @@ class ZXDrawer {
             return;
         }
 
-        const { frameW } = this.getAnimParams();
+        const { frameSize, orient } = this.getAnimParams();
         const { pixels, attributes, w, h } = this.clipboard;
-        const totalFrames = Math.max(1, Math.floor(w / frameW));
+        const totalFrames = Math.max(1, Math.floor((orient === 'v' ? h : w) / frameSize));
         const frameIdx    = this.animCurrentFrame % totalFrames;
+        
+        const frameW = orient === 'v' ? w : frameSize;
+        const frameH = orient === 'v' ? frameSize : h;
 
         const fPixW = frameW * 8;
-        const fPixH = h * 8;
+        const fPixH = frameH * 8;
         const panelW = 220;
         const scale  = Math.max(1, Math.floor(panelW / fPixW));
 
@@ -1407,10 +1451,17 @@ class ZXDrawer {
 
         for (let py = 0; py < fPixH; py++) {
             for (let px = 0; px < fPixW; px++) {
-                const srcX = frameIdx * fPixW + px;
-                if (srcX >= w * 8) continue;
+                let srcX = px;
+                let srcY = py;
+                if (orient === 'v') {
+                    srcY = frameIdx * fPixH + py;
+                    if (srcY >= h * 8) continue;
+                } else {
+                    srcX = frameIdx * fPixW + px;
+                    if (srcX >= w * 8) continue;
+                }
                 const bx = Math.floor(srcX / 8);
-                const by = Math.floor(py / 8);
+                const by = Math.floor(srcY / 8);
                 const attr  = attributes[by * w + bx] || 0;
                 const flash  = (attr >> 7) & 1;
                 const bright = (attr >> 6) & 1;
@@ -1419,7 +1470,7 @@ class ZXDrawer {
                 let inkC   = this.hexToRgb(SPECTRUM_PALETTE[bright][ink]);
                 let paperC = this.hexToRgb(SPECTRUM_PALETTE[bright][paper]);
                 if (flash && this.flashInverted) [inkC, paperC] = [paperC, inkC];
-                const color = pixels[py * (w * 8) + srcX] ? inkC : paperC;
+                const color = pixels[srcY * (w * 8) + srcX] ? inkC : paperC;
                 for (let sy = 0; sy < scale; sy++) {
                     for (let sx = 0; sx < scale; sx++) {
                         const i = ((py * scale + sy) * canvas.width + (px * scale + sx)) * 4;
@@ -1460,7 +1511,7 @@ class ZXDrawer {
         }
 
         document.getElementById('anim-info').textContent =
-            `Frame ${frameIdx + 1}/${totalFrames} · ${frameW}×${h} blocks`;
+            `Frame ${frameIdx + 1}/${totalFrames} · ${frameW}×${frameH} blocks`;
     }
     // ─────────────────────────────────────────────────────────────────────────
 

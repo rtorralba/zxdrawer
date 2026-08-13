@@ -80,6 +80,10 @@
   "alert.export_scr_size": "Exportar a .scr requiere un canvas de 256x192.",
   "alert.export_scr_failed": "La exportación a .scr ha fallado.",
   "anim.framew": "Ancho de frame",
+  "anim.frameh": "Alto de frame",
+  "anim.orientation": "Disposición",
+  "anim.horiz": "Horizontal",
+  "anim.vert": "Vertical",
   "anim.fps": "FPS",
   "anim.no_selection": "Copia una selección para previsualizar"
   ,

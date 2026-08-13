@@ -74,7 +74,11 @@
   "alert.invalid_zxp": "Arquivo .zxp inválido.",
   "alert.export_scr_size": "Exportar para .scr requer um canvas 256x192.",
   "alert.export_scr_failed": "A exportação para .scr falhou.",
-  "anim.framew": "Frame W",
+  "anim.framew": "Largura do frame",
+  "anim.frameh": "Altura do frame",
+  "anim.orientation": "Layout",
+  "anim.horiz": "Horizontal",
+  "anim.vert": "Vertical",
   "anim.fps": "FPS",
   "anim.no_selection": "Copie uma seleção para visualizar"
   ,
