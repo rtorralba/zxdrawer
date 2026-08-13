@@ -164,6 +164,9 @@
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
                         </button>
                     </div>
+                    <button id="anim-emulate-btn" style="width:100%;margin-top:6px;display:flex;align-items:center;justify-content:center;background:var(--accent);border-color:var(--accent)">
+                        <span data-i18n="btn.emulate">Emulate</span>
+                    </button>
                 </div>
 
                 <!-- Current attribute preview removed per user request -->
@@ -681,12 +684,84 @@
             </div>
         </div>
 
+        <!-- Emulate Modal -->
+        <div id="emulate-modal" class="modal hidden">
+            <div class="modal-content" style="width:fit-content;max-width:95vw;text-align:left;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+                    <h2 data-i18n="modal.emulate.title" style="margin:0">Emulate Sprite</h2>
+                    <button id="emulate-close" style="margin:0"><span data-i18n="btn.close">Close</span></button>
+                </div>
+
+                <!-- Two-column layout: canvas left, controls right -->
+                <div style="display:flex;gap:20px;align-items:flex-start">
+
+                    <!-- Left: canvas -->
+                    <div style="flex-shrink:0">
+                        <canvas id="emulate-canvas" width="256" height="192"
+                            style="width:512px;height:384px;image-rendering:pixelated;border:1px solid #444;background:#000;display:block">
+                        </canvas>
+                        <div style="margin-top:8px;font-size:11px;color:#777;text-align:center"
+                             id="emu-hint" data-i18n="modal.emulate.hint">
+                            Keys: O (Left), P (Right), Q (Up/Jump), A (Down)
+                        </div>
+                    </div>
+
+                    <!-- Right: controls + spritesets -->
+                    <div style="display:flex;flex-direction:column;gap:14px;min-width:220px">
+
+                        <!-- Settings -->
+                        <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:#e0e0e0">
+                            <div style="display:flex;align-items:center;gap:8px">
+                                <label data-i18n="modal.emulate.mode" style="width:100px">Mode:</label>
+                                <select id="emu-mode" style="flex:1;background:#121212;border:1px solid #444;color:white;padding:3px 6px;border-radius:3px">
+                                    <option value="topdown"   data-i18n="modal.emulate.topdown">Top-Down</option>
+                                    <option value="platformer" selected data-i18n="modal.emulate.platformer">Platformer</option>
+                                </select>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:8px">
+                                <label data-i18n="modal.emulate.movestep" style="width:100px">Move step (px):</label>
+                                <select id="emu-move-step" style="flex:1;background:#121212;border:1px solid #444;color:white;padding:3px 6px;border-radius:3px">
+                                    <option value="1">1</option>
+                                    <option value="2" selected>2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                </select>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:8px">
+                                <label data-i18n="modal.emulate.animdist" style="width:100px">Anim every (px):</label>
+                                <select id="emu-anim-dist" style="flex:1;background:#121212;border:1px solid #444;color:white;padding:3px 6px;border-radius:3px">
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4" selected>4</option>
+                                    <option value="5">5</option>
+                                    <option value="6">6</option>
+                                    <option value="7">7</option>
+                                    <option value="8">8</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Spriteset selector -->
+                        <div style="border-top:1px solid #333;padding-top:12px">
+                            <h3 style="font-size:13px;margin:0 0 8px 0;color:#ccc" data-i18n="modal.emulate.spritesets">Map Frames to Actions</h3>
+                            <div id="emu-spritesets"
+                                 style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;padding-right:4px">
+                                <!-- JS injects the rows here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
 
     <script src="import/bas.js"></script>
     <script src="export/putchars.js"></script>
     <script src="export/gusprites.js"></script>
     <script src="export/data.js"></script>
     <script src="export/sp1.js"></script>
+    <script src="sprite-emulator.js"></script>
     <script src="renderer.js"></script>
 </body>
 </html>

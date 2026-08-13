@@ -53,6 +53,9 @@ class ZXDrawer {
         this.animInterval = null;
         this.animCurrentFrame = 0;
         
+
+
+        
         // State
         this.pixels = null; // Uint8Array (0 or 1)
         this.attributes = null; // Uint8Array (attribute bytes)
@@ -1155,6 +1158,23 @@ class ZXDrawer {
             this.renderAnimFrame();
             this.selectCurrentAnimFrame();
         };
+
+        // Create emulator once here
+        this.emulator = new SpriteEmulator(this);
+
+        const emulateBtn = document.getElementById('anim-emulate-btn');
+        if (emulateBtn) {
+            emulateBtn.onclick = () => {
+                if (!this.clipboard) return;
+                this.emulator.start();
+            };
+        }
+        const emulateClose = document.getElementById('emulate-close');
+        if (emulateClose) {
+            emulateClose.onclick = () => {
+                this.emulator.stop();
+            };
+        }
         this.renderAnimFrame();
         this.setupAnimDrawing();
     }
@@ -1509,10 +1529,12 @@ class ZXDrawer {
             }
             ctx.stroke();
         }
+        
 
         document.getElementById('anim-info').textContent =
             `Frame ${frameIdx + 1}/${totalFrames} · ${frameW}×${frameH} blocks`;
     }
+
     // ─────────────────────────────────────────────────────────────────────────
 
     // ── Undo / Redo ──────────────────────────────────────────────────────────
