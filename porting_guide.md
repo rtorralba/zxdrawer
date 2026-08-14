@@ -154,3 +154,32 @@ Added new translation keys to `en.json`, `es.json`, `pt.json`:
 - `modal.emulate.act.iso.se`
 - `modal.emulate.act.iso.sw`
 - `modal.emulate.act.iso.nw`
+
+---
+
+## [New Feature] Floating Pixel-Perfect Paste
+
+**Goal:** Allow users to paste a selection, place it roughly in a block-aligned position, and then enter a "floating" mode where it can be adjusted pixel-by-pixel before committing to the canvas.
+
+### Changes in `renderer.js`
+- **State variables:** Added `this.isFloatingPaste = false`, `this.floatingPos = { px: 0, py: 0 }`, `this.floatingDragging = false`, and `this.floatingDragOffset = { dx: 0, dy: 0 }`.
+- **`handlePaint()` (mousedown logic):** 
+  - Instead of immediately committing the paste when the user clicks during `isPasting`, the state transitions to `isFloatingPaste = true`.
+  - The initial floating position is set to the block-aligned coordinates where the user clicked (`bx * 8`, `by * 8`).
+- **`onmousedown` (Dragging):**
+  - Intercepted global mousedown: If clicking *inside* the floating cyan rectangle, `floatingDragging` is set to `true` to allow pixel-by-pixel drag.
+  - If clicking *outside* the rectangle, the floating paste is committed to the canvas (`saveHistory` is called, then `executePaste`).
+- **`onmousemove`:** Updates `floatingPos.px` and `floatingPos.py` freely based on mouse delta while `floatingDragging` is true.
+- **`onkeydown`:** 
+  - Arrow keys (Up/Down/Left/Right) nudge the floating selection 1 pixel at a time.
+  - `Enter` commits the floating selection.
+  - `Escape` aborts the paste operation entirely.
+- **`drawSelection()`:** 
+  - Added a new branch for `isFloatingPaste`. 
+  - It constructs an `ImageData` containing the actual clipboard pixels and their corresponding attributes translated into RGB colours.
+  - Draws this `ImageData` onto `selCtx` so the user can see exactly how the pixels will look (including attributes) overlaid on the main canvas.
+  - Draws a cyan dashed box (`#00ffff`) around the floating selection to differentiate it from the standard block-aligned green box.
+- **`executePaste(px, py)`:** 
+  - Changed signature from `(bx, by)` to accept exact pixel coordinates `(px, py)`.
+  - Pixels are stamped pixel-perfectly into the `this.pixels` array using `tx = px + i`.
+  - Attributes are stamped block-aligned, snapping to the nearest 8x8 cell relative to where the pixels landed (`Math.floor(px / 8)`).

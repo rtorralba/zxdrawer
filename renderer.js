@@ -41,6 +41,10 @@ class ZXDrawer {
         this.clipboard = null; // { pixels, attributes, w, h }
         this.isPasting = false;
         this.pastePos = { bx: 0, by: 0 };
+        this.isFloatingPaste = false;
+        this.floatingPos = { px: 0, py: 0 };
+        this.floatingDragging = false;
+        this.floatingDragOffset = { dx: 0, dy: 0 };
 
         // Undo / Redo
         this.undoStack = [];
@@ -469,9 +473,12 @@ class ZXDrawer {
                 const by = Math.floor(y / 8);
 
                 if (this.isPasting && this.clipboard) {
-                    this.saveHistory();
-                    this.executePaste(this.pastePos.bx, this.pastePos.by);
-                    isDrawing = false; // Stop drawing after paste
+                    this.isPasting = false;
+                    this.isFloatingPaste = true;
+                    this.floatingPos = { px: this.pastePos.bx * 8, py: this.pastePos.by * 8 };
+                    this.floatingDragging = false;
+                    isDrawing = false;
+                    this.drawSelection();
                     return;
                 }
 
@@ -509,20 +516,38 @@ class ZXDrawer {
 
         this.canvasWrapper.onmousedown = (e) => { 
             const rect = this.canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) / this.zoom);
+            const y = Math.floor((e.clientY - rect.top) / this.zoom);
+
+            if (this.isFloatingPaste && this.clipboard) {
+                const pw = this.clipboard.w * 8;
+                const ph = this.clipboard.h * 8;
+                if (x >= this.floatingPos.px && x < this.floatingPos.px + pw &&
+                    y >= this.floatingPos.py && y < this.floatingPos.py + ph) {
+                    this.floatingDragging = true;
+                    this.floatingDragOffset = { dx: x - this.floatingPos.px, dy: y - this.floatingPos.py };
+                    e.preventDefault();
+                    return;
+                } else {
+                    // Clicked outside -> commit
+                    this.saveHistory();
+                    this.executePaste(this.floatingPos.px, this.floatingPos.py);
+                    this.isFloatingPaste = false;
+                }
+            }
+
             this.dragStart = {
-                x: Math.floor((e.clientX - rect.left) / this.zoom),
-                y: Math.floor((e.clientY - rect.top) / this.zoom)
+                x: x,
+                y: y
             };
             if (e.button === 2) e.preventDefault();
             isDrawing = true;
             if (this.currentTool === 'text' && e.button === 0) {
                 isDrawing = false;
-                const px = Math.floor((e.clientX - rect.left) / this.zoom);
-                const py = Math.floor((e.clientY - rect.top) / this.zoom);
-                this.openTextModal(px, py);
+                this.openTextModal(x, y);
                 return;
             }
-            if (this.currentTool === 'draw' && !this.isPasting) this.saveHistory();
+            if (this.currentTool === 'draw' && !this.isPasting && !this.isFloatingPaste) this.saveHistory();
             handlePaint(e); 
         };
         this.canvasWrapper.oncontextmenu = (e) => e.preventDefault();
@@ -530,6 +555,13 @@ class ZXDrawer {
             const rect = this.canvas.getBoundingClientRect();
             const x = Math.floor((e.clientX - rect.left) / this.zoom);
             const y = Math.floor((e.clientY - rect.top) / this.zoom);
+
+            if (this.isFloatingPaste && this.floatingDragging && this.clipboard) {
+                this.floatingPos.px = x - this.floatingDragOffset.dx;
+                this.floatingPos.py = y - this.floatingDragOffset.dy;
+                this.drawSelection();
+                return;
+            }
 
             if (this.isPasting) {
                 let bx = Math.floor(x / 8);
@@ -549,7 +581,10 @@ class ZXDrawer {
                 this.updateStatus(x, y);
             }
         };
-        window.onmouseup = () => { isDrawing = false; };
+        window.onmouseup = () => { 
+            isDrawing = false; 
+            this.floatingDragging = false;
+        };
 
         // Modal triggers
         document.getElementById('size-settings').onclick = () => {
@@ -780,6 +815,34 @@ class ZXDrawer {
 
         // Shortcuts
         window.onkeydown = (e) => {
+            if (this.isFloatingPaste) {
+                let moved = false;
+                if (e.key === 'ArrowUp') { this.floatingPos.py -= 1; moved = true; }
+                if (e.key === 'ArrowDown') { this.floatingPos.py += 1; moved = true; }
+                if (e.key === 'ArrowLeft') { this.floatingPos.px -= 1; moved = true; }
+                if (e.key === 'ArrowRight') { this.floatingPos.px += 1; moved = true; }
+                if (moved) {
+                    e.preventDefault();
+                    this.drawSelection();
+                    return;
+                }
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.saveHistory();
+                    this.executePaste(this.floatingPos.px, this.floatingPos.py);
+                    this.isFloatingPaste = false;
+                    this.drawSelection();
+                    return;
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    this.isFloatingPaste = false;
+                    this.selection = null;
+                    this.drawSelection();
+                    return;
+                }
+            }
+
             // DevTools shortcut: Ctrl+Shift+I (or Cmd+Shift+I on mac)
             if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyI') {
                 try { window.electronAPI.openDevTools(); } catch (err) { console.error('openDevTools failed', err); }
@@ -817,6 +880,7 @@ class ZXDrawer {
                 this.setTool('text');
             } else if (e.key === 'Escape') {
                 this.isPasting = false;
+                this.isFloatingPaste = false;
                 this.selection = null;
                 this.drawSelection();
                 this.canvasWrapper.style.cursor = 'crosshair';
@@ -1650,6 +1714,7 @@ class ZXDrawer {
     setTool(tool) {
         this.currentTool = tool;
         this.isPasting = false;
+        this.isFloatingPaste = false;
 
         // Clicking select clears any existing selection and resets the preview
         if (tool === 'select') {
@@ -1852,6 +1917,50 @@ class ZXDrawer {
                 h: this.clipboard.h
             };
             color = '#00ff00'; // Green for paste preview
+        } else if (this.isFloatingPaste && this.clipboard) {
+            const { pixels, attributes, w, h } = this.clipboard;
+            const px = this.floatingPos.px;
+            const py = this.floatingPos.py;
+            const pw = w * 8;
+            const ph = h * 8;
+
+            const imgData = this.selCtx.createImageData(pw * this.zoom, ph * this.zoom);
+            const data = imgData.data;
+
+            for (let j = 0; j < ph; j++) {
+                for (let i = 0; i < pw; i++) {
+                    const bx = Math.floor(i / 8);
+                    const by = Math.floor(j / 8);
+                    const attr = attributes[by * w + bx];
+                    const flash = (attr >> 7) & 1;
+                    const bright = (attr >> 6) & 1;
+                    const ink = attr & 0x07;
+                    const paper = (attr >> 3) & 0x07;
+
+                    let inkC = this.hexToRgb(SPECTRUM_PALETTE[bright][ink]);
+                    let paperC = this.hexToRgb(SPECTRUM_PALETTE[bright][paper]);
+                    if (flash && this.flashInverted) [inkC, paperC] = [paperC, inkC];
+
+                    const color = pixels[j * pw + i] ? inkC : paperC;
+
+                    for (let sy = 0; sy < this.zoom; sy++) {
+                        for (let sx = 0; sx < this.zoom; sx++) {
+                            const di = ((j * this.zoom + sy) * (pw * this.zoom) + (i * this.zoom + sx)) * 4;
+                            data[di] = color.r;
+                            data[di+1] = color.g;
+                            data[di+2] = color.b;
+                            data[di+3] = 255;
+                        }
+                    }
+                }
+            }
+            this.selCtx.putImageData(imgData, px * this.zoom, py * this.zoom);
+
+            this.selCtx.strokeStyle = '#00ffff'; // Cyan for floating paste
+            this.selCtx.setLineDash([5, 5]);
+            this.selCtx.lineWidth = 2;
+            this.selCtx.strokeRect(px * this.zoom, py * this.zoom, pw * this.zoom, ph * this.zoom);
+            return;
         } else if (this.selection) {
             area = this.selection;
         }
@@ -1972,26 +2081,28 @@ class ZXDrawer {
         this.drawSelection();
     }
 
-    executePaste(bx, by) {
+    executePaste(px, py) {
         if (!this.clipboard) return;
         
         const { pixels, attributes, w, h } = this.clipboard;
 
         for (let j = 0; j < h * 8; j++) {
             for (let i = 0; i < w * 8; i++) {
-                const tx = (bx * 8 + i);
-                const ty = (by * 8 + j);
-                if (tx < this.width && ty < this.height) {
+                const tx = px + i;
+                const ty = py + j;
+                if (tx >= 0 && tx < this.width && ty >= 0 && ty < this.height) {
                     this.pixels[ty * this.width + tx] = pixels[j * (w * 8) + i];
                 }
             }
         }
 
+        const bx = Math.floor(px / 8);
+        const by = Math.floor(py / 8);
         for (let j = 0; j < h; j++) {
             for (let i = 0; i < w; i++) {
                 const tbx = bx + i;
                 const tby = by + j;
-                if (tbx < (this.width / 8) && tby < (this.height / 8)) {
+                if (tbx >= 0 && tbx < (this.width / 8) && tby >= 0 && tby < (this.height / 8)) {
                     this.attributes[tby * (this.width / 8) + tbx] = attributes[j * w + i];
                 }
             }
