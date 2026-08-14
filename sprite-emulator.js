@@ -44,15 +44,20 @@ class SpriteEmulator {
             modeSelect.addEventListener('change', () => {
                 this.emuMode = modeSelect.value;
                 this.emuActionFrames = [[], [], [], [], []];
-                // When switching to platformer, un-ground the sprite so gravity kicks in
                 if (this.emuMode === 'platformer') {
                     this.emuIsGrounded = false;
                     this.emuVelocityY = 0;
                     this.emuCurrentAction = 4;
-                } else {
+                } else if (this.emuMode === 'isometric') {
+                    this.emuCurrentAction = 4; // idle
+                    // Position sprite near centre
+                    this.emuX = 100;
+                    this.emuY = 80;
+                } else { // topdown
                     this.emuCurrentAction = -1;
                 }
                 this.emuIdleTimer = 0;
+                this._updateHint();
                 this.buildSpritesets();
             });
         }
@@ -107,6 +112,8 @@ class SpriteEmulator {
             this.emuReq = requestAnimationFrame(loop);
         };
         this.emuReq = requestAnimationFrame(loop);
+
+        this._updateHint();
     }
 
     stop() {
@@ -117,7 +124,19 @@ class SpriteEmulator {
         window.removeEventListener('keyup',   this.emuKeyupHandler);
     }
 
-    // ─── UI: build frame-selector rows ───────────────────────────────────────
+    _updateHint() {
+        const el = document.getElementById('emu-hint');
+        if (!el) return;
+        if (this.emuMode === 'isometric') {
+            el.textContent = 'Isométrico: Q=NE  P=SE  A=SO  O=NO';
+        } else if (this.emuMode === 'platformer') {
+            el.textContent = 'Plataformas: O=Izda  P=Dcha  Q=Salto';
+        } else {
+            el.textContent = 'Cenital: O=Izda  P=Dcha  Q=Arriba  A=Abajo';
+        }
+    }
+
+
 
     buildSpritesets() {
         const container = document.getElementById('emu-spritesets');
@@ -134,7 +153,17 @@ class SpriteEmulator {
                 loc['modal.emulate.act.jumpr'] || 'Salto Dcha',
                 loc['modal.emulate.act.idle']  || 'Quieto'
             ];
-        } else {
+        } else if (this.emuMode === 'isometric') {
+            // 4 diagonal directions + idle
+            // 0=NE(Q)  1=SE(P)  2=SW(A)  3=NW(O)  4=Idle
+            actionNames = [
+                loc['modal.emulate.act.iso.ne'] || 'NE (Q)',
+                loc['modal.emulate.act.iso.se'] || 'SE (P)',
+                loc['modal.emulate.act.iso.sw'] || 'SO (A)',
+                loc['modal.emulate.act.iso.nw'] || 'NO (O)',
+                loc['modal.emulate.act.idle']   || 'Quieto'
+            ];
+        } else { // topdown
             actionNames = [
                 loc['modal.emulate.act.up']    || 'Arriba',
                 loc['modal.emulate.act.down']  || 'Abajo',
@@ -277,6 +306,21 @@ class SpriteEmulator {
             } else {
                 newAction = 4; // Idle
             }
+
+        // ── Isometric ─────────────────────────────────────────────────────────
+        } else if (this.emuMode === 'isometric') {
+            // Keys:  Q=NE  P=SE  A=SW  O=NW
+            // Screen-space diagonals: x±step, y±step*0.5
+            const goNE = !!this.emuKeys['KeyQ'];
+            const goSE = !!this.emuKeys['KeyP'];
+            const goSW = !!this.emuKeys['KeyA'];
+            const goNW = !!this.emuKeys['KeyO'];
+
+            if (goNE) { movedX += moveStep; movedY -= moveStep * 0.5; newAction = 0; }
+            if (goSE) { movedX += moveStep; movedY += moveStep * 0.5; newAction = 1; }
+            if (goSW) { movedX -= moveStep; movedY += moveStep * 0.5; newAction = 2; }
+            if (goNW) { movedX -= moveStep; movedY -= moveStep * 0.5; newAction = 3; }
+            if (!goNE && !goSE && !goSW && !goNW) newAction = 4; // idle
 
         // ── Top-down ──────────────────────────────────────────────────────────
         } else {
