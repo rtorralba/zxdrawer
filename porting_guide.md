@@ -183,3 +183,31 @@ Added new translation keys to `en.json`, `es.json`, `pt.json`:
   - Changed signature from `(bx, by)` to accept exact pixel coordinates `(px, py)`.
   - Pixels are stamped pixel-perfectly into the `this.pixels` array using `tx = px + i`.
   - Attributes are stamped block-aligned, snapping to the nearest 8x8 cell relative to where the pixels landed (`Math.floor(px / 8)`).
+
+---
+
+## [New Feature] Flood Fill Tool
+
+**Goal:** Provide a standard "paint bucket" tool that fills contiguous 1-bit pixel areas (ink or paper) and applies the currently selected attribute to the affected 8x8 blocks.
+
+### Changes in `index.html`
+- **Toolbar:** Added a new button (`#tool-fill`) with a paint bucket SVG icon next to the text tool.
+
+### Changes in `renderer.js`
+- **Tool Selection:** Added `'fill'` to `this.currentTool` states in `setTool()`. Keyboard shortcut `F` mapped to `this.setTool('fill')`.
+- **`floodFill(startX, startY, fillValue)`:**
+  - Implements a stack-based 4-way flood fill algorithm suitable for JS engines (avoids recursion limit).
+  - Checks if a `this.selection` block area exists. If so, restricts the flood fill boundaries to strictly within the selection box.
+  - Checks the initial value at `(startX, startY)`. If `targetValue === fillValue`, aborts.
+  - Pushes contiguous pixels matching `targetValue` to a stack, marks them as visited, and sets them to `fillValue` (1 for ink, 0 for paper).
+  - Keeps a `Set` of all modified 8x8 blocks (`by * (this.width / 8) + bx`).
+  - After filling pixels, iterates over the `Set` and recalculates attributes for each affected block via `computeAttrByte()`.
+- **`handlePaint()`:**
+  - **Draw Tool:** Modified so that if `this.selection` is active, drawing strokes are clamped/masked to the inside of the selection box.
+  - **Fill Tool:**
+    - If `this.selection` is active, it performs an **Attribute Fill**. It iterates through every 8x8 block in the selection and applies the currently selected ink, paper, brightness, and flash attributes, completely leaving the pixel data (1s and 0s) untouched.
+    - If no selection is active, it triggers the pixel-level `floodFill(x, y, fillValue)`. `fillValue` is determined by the mouse button (`1` for left-click, `0` for right-click).
+  - Skips dragging/drawing phase (`isDrawing = false`).
+
+### Changes in `locales/*.json`
+- Added `"tool.fill.title"` translations across `en.json`, `es.json`, and `pt.json`.

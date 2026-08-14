@@ -395,6 +395,7 @@ class ZXDrawer {
         document.getElementById('tool-draw').onclick = () => this.setTool('draw');
         document.getElementById('tool-select').onclick = () => this.setTool('select');
         document.getElementById('tool-text').onclick = () => this.setTool('text');
+        if (document.getElementById('tool-fill')) document.getElementById('tool-fill').onclick = () => this.setTool('fill');
         
         document.getElementById('copy-btn').onclick = () => this.copySelection();
         document.getElementById('paste-btn').onclick = () => this.startPaste();
@@ -483,14 +484,25 @@ class ZXDrawer {
                 }
 
                 if (this.currentTool === 'draw') {
-                    const attrIdx = by * (this.width / 8) + bx;
-                    // Update pixels
-                    if (e.buttons & 1) { // Left click
-                        this.pixels[y * this.width + x] = 1;
-                                this.attributes[attrIdx] = this.computeAttrByte(attrIdx);
-                    } else if (e.buttons & 2) { // Right click
-                        this.pixels[y * this.width + x] = 0;
-                                this.attributes[attrIdx] = this.computeAttrByte(attrIdx);
+                    let inBounds = true;
+                    if (this.selection) {
+                        const minX = this.selection.x * 8;
+                        const maxX = (this.selection.x + this.selection.w) * 8;
+                        const minY = this.selection.y * 8;
+                        const maxY = (this.selection.y + this.selection.h) * 8;
+                        if (x < minX || x >= maxX || y < minY || y >= maxY) inBounds = false;
+                    }
+
+                    if (inBounds) {
+                        const attrIdx = by * (this.width / 8) + bx;
+                        // Update pixels
+                        if (e.buttons & 1) { // Left click
+                            this.pixels[y * this.width + x] = 1;
+                            this.attributes[attrIdx] = this.computeAttrByte(attrIdx);
+                        } else if (e.buttons & 2) { // Right click
+                            this.pixels[y * this.width + x] = 0;
+                            this.attributes[attrIdx] = this.computeAttrByte(attrIdx);
+                        }
                     }
                 } else if (this.currentTool === 'select') {
                     if (isDrawing) {
@@ -545,6 +557,33 @@ class ZXDrawer {
             if (this.currentTool === 'text' && e.button === 0) {
                 isDrawing = false;
                 this.openTextModal(x, y);
+                return;
+            }
+            if (this.currentTool === 'fill') {
+                isDrawing = false;
+                if (this.selection) {
+                    // Recolor the selection area without modifying pixels
+                    this.saveHistory();
+                    const { x: sx, y: sy, w, h } = this.selection;
+                    for (let j = 0; j < h; j++) {
+                        for (let i = 0; i < w; i++) {
+                            const bx = sx + i;
+                            const by = sy + j;
+                            if (bx >= 0 && bx < (this.width / 8) && by >= 0 && by < (this.height / 8)) {
+                                const attrIdx = by * (this.width / 8) + bx;
+                                this.attributes[attrIdx] = this.computeAttrByte(attrIdx);
+                            }
+                        }
+                    }
+                    this.setDirty(true);
+                    this.render();
+                } else {
+                    // Flood fill pixels if no selection
+                    const fillValue = (e.button === 0) ? 1 : (e.button === 2 ? 0 : -1);
+                    if (fillValue !== -1) {
+                        this.floodFill(x, y, fillValue);
+                    }
+                }
                 return;
             }
             if (this.currentTool === 'draw' && !this.isPasting && !this.isFloatingPaste) this.saveHistory();
@@ -878,6 +917,8 @@ class ZXDrawer {
                 this.flipSelection('v');
             } else if (!e.ctrlKey && e.key.toLowerCase() === 't') {
                 this.setTool('text');
+            } else if (!e.ctrlKey && e.key.toLowerCase() === 'f') {
+                this.setTool('fill');
             } else if (e.key === 'Escape') {
                 this.isPasting = false;
                 this.isFloatingPaste = false;
@@ -3240,6 +3281,65 @@ class ZXDrawer {
                 }
             }
         }
+        this.render();
+    }
+
+    floodFill(startX, startY, fillValue) {
+        if (startX < 0 || startX >= this.width || startY < 0 || startY >= this.height) return;
+        
+        let minX = 0;
+        let maxX = this.width;
+        let minY = 0;
+        let maxY = this.height;
+
+        if (this.selection) {
+            minX = this.selection.x * 8;
+            maxX = (this.selection.x + this.selection.w) * 8;
+            minY = this.selection.y * 8;
+            maxY = (this.selection.y + this.selection.h) * 8;
+            
+            // Abort if click is outside selection
+            if (startX < minX || startX >= maxX || startY < minY || startY >= maxY) return;
+        }
+
+        const targetValue = this.pixels[startY * this.width + startX];
+        if (targetValue === fillValue) return;
+
+        this.saveHistory();
+
+        const stack = [{ x: startX, y: startY }];
+        const visited = new Uint8Array(this.width * this.height);
+        
+        // Keep track of which blocks need attribute updates
+        const blocksToUpdate = new Set();
+
+        while (stack.length > 0) {
+            const { x, y } = stack.pop();
+            const idx = y * this.width + x;
+
+            if (x < minX || x >= maxX || y < minY || y >= maxY) continue;
+            if (visited[idx]) continue;
+            if (this.pixels[idx] !== targetValue) continue;
+
+            visited[idx] = 1;
+            this.pixels[idx] = fillValue;
+
+            const bx = Math.floor(x / 8);
+            const by = Math.floor(y / 8);
+            blocksToUpdate.add(by * (this.width / 8) + bx);
+
+            stack.push({ x: x + 1, y: y });
+            stack.push({ x: x - 1, y: y });
+            stack.push({ x: x, y: y + 1 });
+            stack.push({ x: x, y: y - 1 });
+        }
+
+        // Apply attributes to modified blocks
+        for (const attrIdx of blocksToUpdate) {
+            this.attributes[attrIdx] = this.computeAttrByte(attrIdx);
+        }
+
+        this.setDirty(true);
         this.render();
     }
 

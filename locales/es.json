@@ -1,7 +1,8 @@
 {
-  "tool.draw.title": "Dibujo (P)",
+  "tool.draw.title": "Modo Dibujo (P)",
+  "tool.fill.title": "Herramienta de Relleno (F)",
   "tool.select.title": "Seleccionar Bloques (S)",
-  "tool.text.title": "Texto (T)",
+  "tool.text.title": "Herramienta de Texto (T)",
   "tool.resize.title": "Redimensionar",
   "tool.flip.h": "Voltear Horizontal (H)",
   "tool.flip.v": "Voltear Vertical (V)",

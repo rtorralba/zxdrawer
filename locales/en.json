@@ -1,5 +1,6 @@
 {
   "tool.draw.title": "Draw Mode (P)",
+  "tool.fill.title": "Fill Tool (F)",
   "tool.select.title": "Select Blocks (S)",
   "tool.text.title": "Text Tool (T)",
   "tool.resize.title": "Resize",
