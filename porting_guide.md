@@ -84,3 +84,73 @@ To keep `renderer.js` clean, all emulation and UI rendering logic for the emulat
 
 ### Changes in `locales/*.json`
 - Added UI translation strings: `modal.emulate.mode`, `modal.emulate.topdown`, `modal.emulate.platformer`, `modal.emulate.spritesets`, and the 7 action labels (`up`, `down`, `left`, `right`, `jumpl`, `jumpr`, `idle`).
+
+---
+
+## [Refactor] Modularisation & Bug Fixes for SpriteEmulator
+
+**Goal:** Fix a critical bug where `this.emulator` was being replaced on every `renderAnimFrame()` call, wiping the user's frame selections. Stabilise the emulator lifecycle and clean up stale state from `renderer.js`.
+
+### Changes in `renderer.js`
+- **Moved emulator instantiation** out of `renderAnimFrame()` into `setupAnimationViewer()` so `new SpriteEmulator(this)` is called **exactly once** per session.
+- **Removed legacy emulation variables** from the `ZXDrawer` constructor (`this.emuX`, `this.emuY`, `this.emuKeys`, `this.emuReq`, `this.emuLastTime`, `this.emuFrameTimeAccumulator`, `this.emuCurrentFrame`). All emulation state now lives exclusively inside `SpriteEmulator`.
+
+### Changes in `sprite-emulator.js`
+- **`start()`**: Sprite now spawns at the **bottom of the screen** (grounded) in platformer mode, not at Y=96. Prevents the sprite from immediately entering a falling/jump state on first tick.
+- **Gravity fix**: Gravity (`emuVelocityY += 0.5`) only applies when `!emuIsGrounded`, preventing velocity from accumulating while standing.
+- **`emuDisplayFrame`**: Introduced a dedicated variable tracking the actual sprite-sheet frame number shown on canvas. This decouples display from animation index arithmetic and allows the character to **hold the last frame it was on** when movement stops, without jumping to frame 0.
+- **Idle timer**: When stopped, `emuIdleTimer` counts up. After **5 seconds** of no input, the idle frames (action index 4) start cycling at **1 frame per 500 ms**. Any movement resets the timer.
+- **Action-change reset policy**: `emuCurrentFrameIdx` and `emuAnimTimer` are only reset when **starting** to move, not when stopping, preserving the last drawn frame.
+
+---
+
+## [New Feature] Modal UI Redesign — Two-column layout
+
+**Goal:** Better use of screen real estate in the emulate modal.
+
+### Changes in `index.html`
+- **Two-column layout**: Canvas (512×384 px) on the left; controls panel on the right using `display:flex; gap:20px`.
+- **Controls panel** (right column) contains:
+  - Mode, Move step, Anim every — stacked vertically with aligned labels.
+  - Frame-assignment section (`#emu-spritesets`) below, with `max-height:300px` scroll area.
+- **Close button** moved to the modal header bar alongside the title (top-right).
+- **`#emu-anim-dist`** select extended from 1–4 to **1–8** options.
+- **Hint text** moved below the canvas; updated dynamically by `_updateHint()`.
+
+---
+
+## [New Feature] Isometric Mode in Emulator
+
+**Goal:** Add a third emulation mode for classic ZX Spectrum isometric games (Knight Lore style).
+
+### Changes in `index.html`
+- Added `<option value="isometric">` to `#emu-mode` select.
+
+### Changes in `sprite-emulator.js`
+
+#### `buildSpritesets()`
+- New branch for `this.emuMode === 'isometric'` that shows 5 action rows:
+  - `0 = NE (Q)`, `1 = SE (P)`, `2 = SO (A)`, `3 = NO (O)`, `4 = Quieto`
+
+#### `_tick()` — isometric branch
+- **Movement**: Diagonal screen-space vectors (no gravity, no grounding):
+  - **Q (NE)**: `movedX += step`, `movedY -= step × 0.5`
+  - **P (SE)**: `movedX += step`, `movedY += step × 0.5`
+  - **A (SO)**: `movedX -= step`, `movedY += step × 0.5`
+  - **O (NO)**: `movedX -= step`, `movedY -= step × 0.5`
+- No keys pressed → action 4 (idle, 5-second rule applies).
+
+#### `_updateHint()`
+- New helper method. Updates `#emu-hint` text to show the correct key legend for the active mode (Cenital / Plataformas / Isométrico). Called from `start()` and from the `emu-mode` change handler.
+
+#### Mode-change handler
+- Switching to **isometric**: sets action to idle (4), repositions sprite near centre, calls `_updateHint()` and `buildSpritesets()`.
+- Switching to **platformer**: sets `emuIsGrounded = false` so gravity activates immediately.
+
+### Changes in `locales/*.json`
+Added new translation keys to `en.json`, `es.json`, `pt.json`:
+- `modal.emulate.isometric`
+- `modal.emulate.act.iso.ne`
+- `modal.emulate.act.iso.se`
+- `modal.emulate.act.iso.sw`
+- `modal.emulate.act.iso.nw`
