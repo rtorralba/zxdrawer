@@ -58,7 +58,7 @@
   "btn.import": "Import",
   "btn.play": "Play",
   "btn.stop": "Stop",
-  "btn.emulate": "Emulate",
+  "btn.emulate": "Sprite Emulator",
   "modal.emulate.title": "Emulate Sprite",
   "modal.emulate.hint": "Keys: O (Left), P (Right), Q (Up), A (Down)",
   "modal.emulate.movestep": "Move step (px):",

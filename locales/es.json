@@ -58,7 +58,7 @@
   "btn.import": "Importar",
   "btn.play": "Reproducir",
   "btn.stop": "Detener",
-  "btn.emulate": "Emular",
+  "btn.emulate": "Emulador de Sprites",
   "modal.emulate.title": "Emular Sprite",
   "modal.emulate.hint": "Teclas: O (Izquierda), P (Derecha), Q (Arriba), A (Abajo)",
   "modal.emulate.movestep": "Avance (px):",

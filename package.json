@@ -1,6 +1,6 @@
 {
   "name": "zx-drawer",
-  "version": "1.0.34",
+  "version": "1.0.35",
   "description": "Simplified ZX Spectrum graphics editor with .zxp support.",
   "main": "main.js",
   "author": "Raül Torralba",
@@ -91,7 +91,6 @@
   "devDependencies": {
     "electron": "^30.0.0",
     "electron-builder": "^24.13.3",
-    "esbuild": "^0.19.4",
-    "javascript-obfuscator": "^4.0.0"
+    "esbuild": "^0.19.4"
   }
 }

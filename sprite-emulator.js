@@ -2,8 +2,8 @@
  * SpriteEmulator – handles the "Emulate" modal for ZXDrawer.
  *
  * Action indices (platformer):
- *   0 = Walk Left   1 = Walk Right
- *   2 = Jump Left   3 = Jump Right
+ *   0 = Walk Right   1 = Walk Left
+ *   2 = Jump Right   3 = Jump Left
  *   4 = Idle
  *
  * Action indices (topdown):
@@ -61,24 +61,42 @@ class SpriteEmulator {
                 this.buildSpritesets();
             });
         }
+
+        const rebuild = () => {
+            this.emuActionFrames = [[], [], [], [], []];
+            this.buildSpritesets();
+        };
+        const inputW = document.getElementById('emu-sprite-w');
+        const inputH = document.getElementById('emu-sprite-h');
+        if (inputW) inputW.addEventListener('change', rebuild);
+        if (inputH) inputH.addEventListener('change', rebuild);
     }
 
     // ─── Public API ───────────────────────────────────────────────────────────
 
+    _getData() {
+        return {
+            w: this.app.width / 8,
+            h: this.app.height / 8,
+            pixels: this.app.pixels,
+            attributes: this.app.attributes
+        };
+    }
+
     start() {
         const modal = document.getElementById('emulate-modal');
         if (!modal) return;
-        const clipboard = this.app.clipboard;
+        const clipboard = this._getData();
         if (!clipboard) return;
         modal.classList.remove('hidden');
 
         const modeSelect = document.getElementById('emu-mode');
         if (modeSelect) this.emuMode = modeSelect.value || 'platformer';
 
-        const { frameSize, orient } = this.app.getAnimParams();
-        const { w, h } = clipboard;
-        const fPixW = (orient === 'v' ? w : frameSize) * 8;
-        const fPixH = (orient === 'v' ? frameSize : h) * 8;
+        const spriteW = parseInt(document.getElementById('emu-sprite-w').value) || 2;
+        const spriteH = parseInt(document.getElementById('emu-sprite-h').value) || 2;
+        const fPixW = spriteW * 8;
+        const fPixH = spriteH * 8;
 
         // Reset runtime state
         this.emuX = Math.floor((256 - fPixW) / 2);
@@ -140,17 +158,17 @@ class SpriteEmulator {
 
     buildSpritesets() {
         const container = document.getElementById('emu-spritesets');
-        if (!container || !this.app.clipboard) return;
+        if (!container) return;
         container.innerHTML = '';
 
         const loc = this.app._currentLocaleMap || {};
         let actionNames;
         if (this.emuMode === 'platformer') {
             actionNames = [
-                loc['modal.emulate.act.left']  || 'Izda',
                 loc['modal.emulate.act.right'] || 'Dcha',
-                loc['modal.emulate.act.jumpl'] || 'Salto Izda',
+                loc['modal.emulate.act.left']  || 'Izda',
                 loc['modal.emulate.act.jumpr'] || 'Salto Dcha',
+                loc['modal.emulate.act.jumpl'] || 'Salto Izda',
                 loc['modal.emulate.act.idle']  || 'Quieto'
             ];
         } else if (this.emuMode === 'isometric') {
@@ -172,13 +190,14 @@ class SpriteEmulator {
             ];
         }
 
-        const { frameSize, orient } = this.app.getAnimParams();
-        const { w, h, pixels, attributes } = this.app.clipboard;
-        const totalFrames = Math.max(1, Math.floor((orient === 'v' ? h : w) / frameSize));
-        const frameW = orient === 'v' ? w : frameSize;
-        const frameH = orient === 'v' ? frameSize : h;
-        const fPixW  = frameW * 8;
-        const fPixH  = frameH * 8;
+        const { w, h, pixels, attributes } = this._getData();
+        const spriteW = parseInt(document.getElementById('emu-sprite-w').value) || 2;
+        const spriteH = parseInt(document.getElementById('emu-sprite-h').value) || 2;
+        const cols = Math.floor(w / spriteW);
+        const rows = Math.floor(h / spriteH);
+        const totalFrames = Math.max(1, cols * rows);
+        const fPixW  = spriteW * 8;
+        const fPixH  = spriteH * 8;
 
         // Ensure array is big enough
         while (this.emuActionFrames.length < actionNames.length) {
@@ -194,13 +213,13 @@ class SpriteEmulator {
             label.style.cssText = 'width:72px;font-size:12px;color:#ccc;flex-shrink:0';
 
             const framesDiv = document.createElement('div');
-            framesDiv.style.cssText = 'display:flex;gap:3px;flex-wrap:wrap';
+            framesDiv.style.cssText = `display:grid;grid-template-columns:repeat(${cols}, max-content);gap:3px`;
 
             for (let f = 0; f < totalFrames; f++) {
                 const fc = document.createElement('canvas');
                 fc.width  = fPixW;
                 fc.height = fPixH;
-                const scale = Math.max(1, Math.floor(40 / Math.max(fPixW, fPixH)));
+                const scale = Math.max(1, Math.ceil(30 / fPixW));
                 fc.style.cssText = `width:${fPixW*scale}px;height:${fPixH*scale}px;image-rendering:pixelated;cursor:pointer`;
                 fc.title = `Frame ${f}`;
 
@@ -227,9 +246,12 @@ class SpriteEmulator {
                 const d = imgData.data;
                 for (let py = 0; py < fPixH; py++) {
                     for (let px = 0; px < fPixW; px++) {
-                        let srcX = px, srcY = py;
-                        if (orient === 'v') { srcY = f * fPixH + py; if (srcY >= h*8) continue; }
-                        else                { srcX = f * fPixW + px; if (srcX >= w*8) continue; }
+                        const col = f % cols;
+                        const row = Math.floor(f / cols);
+                        const srcX = col * spriteW * 8 + px;
+                        const srcY = row * spriteH * 8 + py;
+                        if (srcX >= w*8 || srcY >= h*8) continue;
+
                         const bx = Math.floor(srcX/8), by = Math.floor(srcY/8);
                         const attr   = attributes[by*w+bx] || 0;
                         const bright = (attr>>6)&1, ink = attr&7, paper = (attr>>3)&7;
@@ -267,10 +289,11 @@ class SpriteEmulator {
         const moveStep = parseInt(document.getElementById('emu-move-step').value) || 2;
         const animDist = parseInt(document.getElementById('emu-anim-dist').value) || 4;
 
-        const { frameSize, orient } = this.app.getAnimParams();
-        const { w, h } = this.app.clipboard;
-        const fPixW = (orient === 'v' ? w        : frameSize) * 8;
-        const fPixH = (orient === 'v' ? frameSize : h       ) * 8;
+        const { w, h } = this._getData();
+        const spriteW = parseInt(document.getElementById('emu-sprite-w').value) || 2;
+        const spriteH = parseInt(document.getElementById('emu-sprite-h').value) || 2;
+        const fPixW = spriteW * 8;
+        const fPixH = spriteH * 8;
 
         let movedX = 0, movedY = 0;
         let newAction;
@@ -300,9 +323,9 @@ class SpriteEmulator {
 
             // Determine action based on current state
             if (!this.emuIsGrounded) {
-                newAction = this.emuFacingRight ? 3 : 2; // Jump R / Jump L
+                newAction = this.emuFacingRight ? 2 : 3; // Jump R / Jump L
             } else if (goLeft || goRight) {
-                newAction = this.emuFacingRight ? 1 : 0; // Walk R / Walk L
+                newAction = this.emuFacingRight ? 0 : 1; // Walk R / Walk L
             } else {
                 newAction = 4; // Idle
             }
@@ -366,7 +389,7 @@ class SpriteEmulator {
                 // If we just landed and we were in jump, move to walk/idle
                 if (this.emuCurrentAction === 2 || this.emuCurrentAction === 3) {
                     const walking = movedX !== 0;
-                    newAction = walking ? (this.emuFacingRight ? 1 : 0) : 4;
+                    newAction = walking ? (this.emuFacingRight ? 0 : 1) : 4;
                     if (newAction !== this.emuCurrentAction) {
                         this.emuCurrentAction = newAction;
                         // Landing from jump while walking: reset anim
@@ -431,14 +454,16 @@ class SpriteEmulator {
 
     draw() {
         const canvas = document.getElementById('emulate-canvas');
-        if (!canvas || !this.app.clipboard) return;
+        if (!canvas) return;
         const ctx = canvas.getContext('2d');
 
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        const { frameSize, orient } = this.app.getAnimParams();
-        const { pixels, attributes, w, h } = this.app.clipboard;
+        const { pixels, attributes, w, h } = this._getData();
+        const spriteW = parseInt(document.getElementById('emu-sprite-w').value) || 2;
+        const spriteH = parseInt(document.getElementById('emu-sprite-h').value) || 2;
+        const cols = Math.floor(w / spriteW);
 
         const action = this.emuCurrentAction;
         const frames = (action >= 0 && action < this.emuActionFrames.length)
@@ -449,19 +474,20 @@ class SpriteEmulator {
         let frameIdx = this.emuDisplayFrame;
         if (frameIdx === undefined || frameIdx === null) frameIdx = 0;
 
-        const frameW = orient === 'v' ? w        : frameSize;
-        const frameH = orient === 'v' ? frameSize : h;
-        const fPixW  = frameW * 8;
-        const fPixH  = frameH * 8;
+        const fPixW  = spriteW * 8;
+        const fPixH  = spriteH * 8;
 
         const imgData = ctx.createImageData(fPixW, fPixH);
         const data    = imgData.data;
 
+        const col = frameIdx % cols;
+        const row = Math.floor(frameIdx / cols);
+
         for (let py = 0; py < fPixH; py++) {
             for (let px = 0; px < fPixW; px++) {
-                let srcX = px, srcY = py;
-                if (orient === 'v') { srcY = frameIdx * fPixH + py; if (srcY >= h*8) continue; }
-                else                { srcX = frameIdx * fPixW + px; if (srcX >= w*8) continue; }
+                const srcX = col * spriteW * 8 + px;
+                const srcY = row * spriteH * 8 + py;
+                if (srcX >= w*8 || srcY >= h*8) continue;
 
                 const bx = Math.floor(srcX/8), by = Math.floor(srcY/8);
                 const attr   = attributes[by*w+bx] || 0;

@@ -1,7 +1,6 @@
 const { build } = require('esbuild');
 const fs = require('fs');
 const path = require('path');
-const JavaScriptObfuscator = require('javascript-obfuscator');
 const { spawnSync } = require('child_process');
 
 // Only bundle renderer.js (browser context, no require).
@@ -39,23 +38,8 @@ async function doBuild() {
 
       const code = fs.readFileSync(tmpOut, 'utf8');
 
-      // Obfuscate with safe options only.
-      // controlFlowFlattening and deadCodeInjection are disabled: they restructure
-      // the AST and break `this` closures inside for/let loops (e.g. palette swatches).
-      // stringArray + transformObjectKeys give real protection without breaking code.
-      const obf = JavaScriptObfuscator.obfuscate(code, {
-        compact: true,
-        controlFlowFlattening: false,
-        deadCodeInjection: false,
-        stringArray: true,
-        stringArrayEncoding: ['base64'],
-        stringArrayIndexShift: true,
-        stringArrayRotate: true,
-        transformObjectKeys: true,
-        unicodeEscapeSequence: false,
-      }).getObfuscatedCode();
-
-      fs.writeFileSync(it.outfile, obf, 'utf8');
+      // No obfuscation, just copy the esbuild output
+      fs.writeFileSync(it.outfile, code, 'utf8');
 
       // remove temp
       fs.unlinkSync(tmpOut);

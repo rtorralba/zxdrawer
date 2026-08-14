@@ -6,6 +6,7 @@ const SPECTRUM_PALETTE = [
     ['#000000', '#0000D7', '#D70000', '#D700D7', '#00D700', '#00D7D7', '#D7D700', '#D7D7D7'], // Normal
     ['#000000', '#0000FF', '#FF0000', '#FF00FF', '#00FF00', '#00FFFF', '#FFFF00', '#FFFFFF']  // Bright
 ];
+window.SPECTRUM_PALETTE = SPECTRUM_PALETTE;
 
 // Localized strings are loaded from JSON files in /locales/*.json
 const FALLBACK_TRANSLATIONS = {
@@ -1270,7 +1271,6 @@ class ZXDrawer {
         const emulateBtn = document.getElementById('anim-emulate-btn');
         if (emulateBtn) {
             emulateBtn.onclick = () => {
-                if (!this.clipboard) return;
                 this.emulator.start();
             };
         }
