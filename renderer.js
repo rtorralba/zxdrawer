@@ -260,6 +260,7 @@ class ZXDrawer {
         this.selCanvas.width = w;
         this.selCanvas.height = h;
         this.updateZoom();
+        this.updateStatus(0, 0);
     }
 
     resizeData(newW, newH) {
@@ -1872,9 +1873,12 @@ class ZXDrawer {
         const blockText = blockTpl.replace('{bx}', bx).replace('{by}', by);
         const sizeText = sizeTpl.replace('{w}', this.width).replace('{h}', this.height);
 
-        document.getElementById('status-coords').innerText = coordsText;
-        document.getElementById('status-block').innerText = blockText;
-        document.getElementById('status-size').innerText = sizeText;
+        const elCoords = document.getElementById('status-coords');
+        if (elCoords) elCoords.innerText = coordsText;
+        const elBlock = document.getElementById('status-block');
+        if (elBlock) elBlock.innerText = blockText;
+        const elSize = document.getElementById('status-size');
+        if (elSize) elSize.innerText = sizeText;
 
         // Update selection size: show pixels and character blocks (8x8) using localized formats
         try {
@@ -2814,13 +2818,28 @@ class ZXDrawer {
         const srcCanvas  = document.getElementById('import-src-canvas');
         const zxCanvas   = document.getElementById('import-zx-canvas');
 
-        srcCanvas.width  = 256;
-        srcCanvas.height = 192;
-        zxCanvas.width   = 256;
-        zxCanvas.height  = 192;
-
         const img = new Image();
         img.onload = () => {
+            const rawW = img.naturalWidth || img.width;
+            const rawH = img.naturalHeight || img.height;
+
+            // Dimensions must be multiples of 8 for ZX Spectrum attribute blocks
+            const targetW = Math.max(8, (rawW % 8 === 0 ? rawW : Math.round(rawW / 8) * 8));
+            const targetH = Math.max(8, (rawH % 8 === 0 ? rawH : Math.round(rawH / 8) * 8));
+
+            this._importWidth  = targetW;
+            this._importHeight = targetH;
+
+            srcCanvas.width  = targetW;
+            srcCanvas.height = targetH;
+            zxCanvas.width   = targetW;
+            zxCanvas.height  = targetH;
+
+            const dimsEl = document.getElementById('import-image-dims');
+            if (dimsEl) {
+                dimsEl.textContent = `${targetW} × ${targetH} px (${targetW / 8} × ${targetH / 8} chars)`;
+            }
+
             const updatePreview = () => {
                 const brightness = document.getElementById('import-brightness').value;
                 const contrast   = document.getElementById('import-contrast').value;
@@ -2832,7 +2851,7 @@ class ZXDrawer {
                 // Draw adjusted source
                 const srcCtx = srcCanvas.getContext('2d');
                 srcCtx.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
-                srcCtx.drawImage(img, 0, 0, 256, 192);
+                srcCtx.drawImage(img, 0, 0, targetW, targetH);
                 srcCtx.filter = 'none';
 
                 // Convert to ZX Spectrum
@@ -2842,12 +2861,14 @@ class ZXDrawer {
 
                 // Render ZX preview
                 const zxCtx   = zxCanvas.getContext('2d');
-                const imgData = zxCtx.createImageData(256, 192);
+                const imgData = zxCtx.createImageData(targetW, targetH);
                 const data    = imgData.data;
                 const pal     = SPECTRUM_PALETTE;
-                for (let by = 0; by < 24; by++) {
-                    for (let bx = 0; bx < 32; bx++) {
-                        const attr   = attributes[by * 32 + bx];
+                const blocksX = targetW / 8;
+                const blocksY = targetH / 8;
+                for (let by = 0; by < blocksY; by++) {
+                    for (let bx = 0; bx < blocksX; bx++) {
+                        const attr   = attributes[by * blocksX + bx];
                         const bright = (attr >> 6) & 1;
                         const inkC   = this.hexToRgb(pal[bright][attr & 7]);
                         const paperC = this.hexToRgb(pal[bright][(attr >> 3) & 7]);
@@ -2855,8 +2876,8 @@ class ZXDrawer {
                             for (let px = 0; px < 8; px++) {
                                 const x = bx * 8 + px;
                                 const y = by * 8 + py;
-                                const c = pixels[y * 256 + x] ? inkC : paperC;
-                                const i = (y * 256 + x) * 4;
+                                const c = pixels[y * targetW + x] ? inkC : paperC;
+                                const i = (y * targetW + x) * 4;
                                 data[i] = c.r; data[i+1] = c.g; data[i+2] = c.b; data[i+3] = 255;
                             }
                         }
@@ -2885,12 +2906,16 @@ class ZXDrawer {
 
         document.getElementById('import-image-apply').onclick = () => {
             if (this._importPixels && this._importAttributes) {
+                this.selection = null;
+                this.clipboard = null;
+                this.drawSelection();
                 this.undoStack = [];
                 this.redoStack = [];
-                this.resetData(256, 192);
+                this.resetData(this._importWidth, this._importHeight);
                 this.pixels     = this._importPixels;
                 this.attributes = this._importAttributes;
                 this.currentFilePath = null;
+                this.setDirty(true);
                 this.render();
             }
             modal.classList.add('hidden');
@@ -2898,9 +2923,13 @@ class ZXDrawer {
     }
 
     convertImageToZXCanvas(srcCanvas) {
-        const raw     = srcCanvas.getContext('2d').getImageData(0, 0, 256, 192).data;
-        const pixels  = new Uint8Array(256 * 192);
-        const attrs   = new Uint8Array(32 * 24);
+        const w = srcCanvas.width;
+        const h = srcCanvas.height;
+        const raw     = srcCanvas.getContext('2d').getImageData(0, 0, w, h).data;
+        const pixels  = new Uint8Array(w * h);
+        const blocksX = Math.floor(w / 8);
+        const blocksY = Math.floor(h / 8);
+        const attrs   = new Uint8Array(blocksX * blocksY);
 
         // Pre-build palette as plain arrays for speed: pal[bright][idx] = [r,g,b]
         const pal = SPECTRUM_PALETTE.map(set => set.map(hex => {
@@ -2912,14 +2941,14 @@ class ZXDrawer {
         const bG = new Uint8Array(64);
         const bB = new Uint8Array(64);
 
-        for (let by = 0; by < 24; by++) {
-            for (let bx = 0; bx < 32; bx++) {
+        for (let by = 0; by < blocksY; by++) {
+            for (let bx = 0; bx < blocksX; bx++) {
                 // Collect block pixels
                 for (let py = 0; py < 8; py++) {
                     for (let px = 0; px < 8; px++) {
                         const x = bx * 8 + px;
                         const y = by * 8 + py;
-                        const i = (y * 256 + x) * 4;
+                        const i = (y * w + x) * 4;
                         const j = py * 8 + px;
                         bR[j] = raw[i]; bG[j] = raw[i+1]; bB[j] = raw[i+2];
                     }
@@ -2953,7 +2982,7 @@ class ZXDrawer {
                     }
                 }
 
-                attrs[by * 32 + bx] = (bestBright << 6) | (bestPaper << 3) | bestInk;
+                attrs[by * blocksX + bx] = (bestBright << 6) | (bestPaper << 3) | bestInk;
 
                 // Assign pixels to ink (1) or paper (0)
                 const iC = pal[bestBright][bestInk];
@@ -2966,7 +2995,7 @@ class ZXDrawer {
                         const r = bR[j], g = bG[j], b = bB[j];
                         const dI = (r-ir)*(r-ir) + (g-ig)*(g-ig) + (b-ib)*(b-ib);
                         const dP = (r-pr)*(r-pr) + (g-pg)*(g-pg) + (b-pb)*(b-pb);
-                        pixels[(by * 8 + py) * 256 + (bx * 8 + px)] = dI <= dP ? 1 : 0;
+                        pixels[(by * 8 + py) * w + (bx * 8 + px)] = dI <= dP ? 1 : 0;
                     }
                 }
             }

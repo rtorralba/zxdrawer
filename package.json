@@ -1,6 +1,6 @@
 {
   "name": "zx-drawer",
-  "version": "1.0.35",
+  "version": "1.0.36",
   "description": "Simplified ZX Spectrum graphics editor with .zxp support.",
   "main": "main.js",
   "author": "Raül Torralba",
@@ -18,7 +18,8 @@
     "test:putchars": "node tests/putchars.test.js",
     "test:data": "node tests/data_export.test.js",
     "test:sp1": "node tests/sp1.test.js",
-    "test": "npm run test:gusprites && npm run test:putchars && npm run test:data && npm run test:sp1",
+    "test:import": "node tests/import_image.test.js",
+    "test": "npm run test:gusprites && npm run test:putchars && npm run test:data && npm run test:sp1 && npm run test:import",
     "prepare": "git config core.hooksPath .githooks"
   },
   "build": {
