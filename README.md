@@ -58,6 +58,17 @@ Build (bundle + obfuscate + package):
 npm run build
 ```
 
+Supporters
+----------
+Special thanks to the project supporters:
+
+- [Ariel Endaraues](https://endaraues.itch.io/)
+- [El SPECTRUMERO Javi Ortiz](https://www.youtube.com/@ElSpectrumeroJaviOrtiz)
+- [Mananuk](https://mananuk.itch.io/)
+- [Andrés Hirunatan](https://xarxa.cloud/@hirunatan)
+- DennisKenny
+- Oldsoft
+
 Contributing
 ------------
 Contributions are welcome under the terms of the AGPLv3. Please open issues or PRs on the repository.
